@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [com.taoensso/timbre "4.10.0"]
                  [org.clojure/tools.reader "1.3.2"]
+                 [org.clojure/clojurescript "1.10.597"]
                  [midje "1.9.9"]
                  [funcool/cuerdas "2.2.0"]]
   :repl-options {:init-ns sqisp.core})

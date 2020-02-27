@@ -6,8 +6,17 @@
    [clojure.java.io :as io])
   (:import [java.io File Writer PushbackReader]))
 
+
 ;; (def ^:dynamic *out* nil)
 (declare emit)
+
+(defmacro emit-wrap [env & body]
+  `(let [env# ~env]
+     ~@body
+     (when-not (= :expr (:context env#)) (emitln ";"))))
+
+(defn comma-sep [xs]
+  (interpose "," xs))
 
 (defn compilation-error [cause]
   (ex-info nil {:sqisp.error/phase :compilation} cause))
@@ -50,6 +59,23 @@
 (defn emit [ast]
   (emit* ast))
 
+(defn emitln
+  ([] (newline))
+  ([a]
+   (emits a) (newline))
+  ([a b]
+   (emits a) (emits b) (newline))
+  ([a b c]
+   (emits a) (emits b) (emits c) (newline))
+  ([a b c d]
+   (emits a) (emits b) (emits c) (emits d) (newline))
+  ([a b c d e]
+   (emits a) (emits b) (emits c) (emits d) (emits e) (newline))
+  ([a b c d e & xs]
+   (emits a) (emits b) (emits c) (emits d) (emits e)
+   (doseq [x xs] (emits x))
+   (newline)))
+
 (defn wrap-in-double-quotes [x]
   (str \" x \"))
 
@@ -71,12 +97,22 @@
   (emits (wrap-in-double-quotes (str x))))
 
 (defmethod emit* :const
-  [{:keys [form]}]
-  (emit-constant* form))
+  [{:keys [form env]}]
+  (when-not (= :statement (:context env))
+    (emit-constant* form)))
 
 (defmethod emit* :invoke
   [{f :fn :keys [args env] :as expr}]
-  (emits "(" "[" (comma-sep args) "]" " call " f ")"))
+  (emit-wrap env (emits "(" "[" (comma-sep args) "]" " call " f ")")))
+
+(defmethod emit* :builtin
+  [{f :fn :keys [args env builtin] :as expr}]
+  (emit-wrap
+   env
+   (case (count args)
+     0 (emits "(" (:name builtin) ")")
+     1 (emits "(" f " " (first args) ")")
+     2 (emits "(" (first args) " " f " " (second args) ")"))))
 
 (defmethod emit* :map
   [{:keys [keys vals]}]
@@ -93,6 +129,40 @@
   (emits "[" "[" (comma-sep items) "]" "]"
          " call " (munge "hash-set")))
 
+(defn truthy-constant?
+  [{:keys [op form]}]
+  (and (= op :const)
+       form
+       (not (or (and (string? form) (= form ""))
+                (and (number? form) (zero? form))))))
+
+(defn falsey-constant?
+  [{:keys [op form]}]
+  (and (= op :const)
+       (or (false? form) (nil? form))))
+
+(defmethod emit* :if
+  [{:keys [env test then else]}]
+  (emit-wrap
+   env
+   (cond
+     (truthy-constant? test) (emitln then)
+     (falsey-constant? test) (emitln else)
+     :else (do
+             (emitln "if (" test ") then {")
+             (emit then)
+             (emitln "} else {")
+             (emit else)
+             (emits "}")))))
+
+(defmethod emit* :do
+  [{:keys [statements ret env]}]
+  (let [context (:context env)]
+    (when (and (seq statements) (= :expr context)) (emitln "([] call {"))
+    (doseq [s statements] (emitln s))
+    (emit ret)
+    (when (and (seq statements) (= :expr context)) (emitln "})"))))
+
 (defn munge
   [s]
   (as-> s $
@@ -101,9 +171,6 @@
 
 (defmethod emit* :var [{:keys [form name]}]
   (emits (munge (str name))))
-
-(defn comma-sep [xs]
-  (interpose "," xs))
 
 (defmethod emit* :vector
   [{:keys [items]}]
@@ -117,15 +184,16 @@
   (with-open [out ^Writer (io/make-writer dest {})]
     (binding [*out* out]
       (with-open [rdr (io/reader src)]
-        (loop [forms (ana/forms-seq* rdr)]
-          (if (seq forms)
-            (let [form (ana/analyze (first forms))]
-              (emit form)
-              (recur (rest forms)))
-            (let [ret {:file dest
-                       :out-file (.toString dest)
-                       :source-file src}]
-              ret)))))))
+        (let [env (ana/empty-env)]
+          (loop [forms (ana/forms-seq* rdr)]
+            (if (seq forms)
+              (let [form (ana/analyze (first forms))]
+                (emit env form)
+                (recur (rest forms)))
+              (let [ret {:file dest
+                         :out-file (.toString dest)
+                         :source-file src}]
+                ret))))))))
 
 (defn compile-file*
   [^File src ^File dest]

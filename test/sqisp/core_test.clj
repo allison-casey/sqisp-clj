@@ -1,7 +1,14 @@
 (ns sqisp.core-test
   (:use midje.sweet)
-  (:require [sqisp.core :as sqisp]))
+  (:require [sqisp.core :as sqisp]
+            [sqisp.analyzer :as ana]
+            [sqisp.analyzer :refer [empty-env]]))
 
+;; (sqisp/emit {:op :if :env (empty-env) :form '(if true "hello")
+;;   :test {:op :const :val 'true :env (empty-env) :form 'true :tag 'boolean}
+;;   :then {:op :const :val '"hello" :env (empty-env) :form '"hello" :tag 'string}
+;;   :else {:op :const :val 'nil :env (empty-env) :form 'nil :tag 'sqp-nil}
+;;   :children [:test :then :else]})
 
 (facts "about `emit`"
        (fact "strings"
@@ -72,18 +79,54 @@
                             :tag 'sqp/Vector}))
              => "[\"hello\",[false]]")
        (fact "invoke"
-             (with-out-str
-               (sqisp/emit {:op :invoke
-                            :form '(print "foo")
-                            :fn {:op :var :form 'print :name 'print}
-                            :args [{:op :const :form '"foo" :tag 'string}]}))
-             => "([\"foo\"] call print)"
-             (with-out-str
-               (sqisp/emit {:op :invoke
-                            :form '(hint "foo")
-                            :fn {:op :var :form 'hint :name 'hint}
-                            :args [{:op :const :form '"foo" :tag 'string}]}))
-             => "(hint \"foo\")")
+             (fact "special"
+                   (with-out-str
+                     (sqisp/emit {:op :if
+                                  :env (empty-env)
+                                  :form '(if true "hello")
+                                  :test {:op :const :env (empty-env)
+                                         :form 'true :tag 'boolean}
+                                  :then {:op :const :env (empty-env)
+                                         :form '"hello" :tag 'string}
+                                  :else {:op :const :env (empty-env)
+                                         :form 'nil :tag 'sqp-nil}}))
+                   => "\n;\n")
+             (fact "invoke"
+                   (with-out-str
+                     (sqisp/emit {:op :invoke
+                                  :form '(print "foo")
+                                  :fn {:op :var :form 'print :name 'print}
+                                  :args [{:op :const :form '"foo" :tag 'string}]}))
+                   => "([\"foo\"] call print);\n")
+             (fact "builtins"
+                   (with-out-str
+                     (sqisp/emit {:op :builtin
+                                  :form '(select [:foo] 0)
+                                  :fn {:op :var :form 'select :name 'select}
+                                  :builtin {:name "select"}
+                                  :args [{:op :vector :form '[:foo]
+                                          :items [{:op :const, :val ':foo,
+                                                   :form ':foo, :tag 'sqp/Keyword}]}
+                                         {:op :const, :val '0
+                                          :form '0, :tag 'number}]}))
+                   => "([\":foo\"] select 0);\n"
+                   (with-out-str
+                     (sqisp/emit {:op :builtin
+                                  :form '(all-units)
+                                  :builtin {:name "allUnits",
+                                            :variants
+                                            [{:parameters (),
+                                              :syntax {:center "allUnits"},
+                                              :returns {:type "Array"}}]}
+                                  :fn {:op :var :form 'all-units :name 'all-units}
+                                  :args []}))
+                   => "(allUnits);\n"
+                   (with-out-str
+                     (sqisp/emit {:op :builtin
+                                  :form '(hint "foo")
+                                  :fn {:op :var :form 'hint :name 'hint}
+                                  :args [{:op :const :form '"foo" :tag 'string}]}))
+                   => "(hint \"foo\");\n"))
        (fact "maps"
              (with-out-str
                (sqisp/emit {:op :map, :form '{:hello 42}
@@ -103,3 +146,11 @@
                             :tag 'sqp/Set}))
              => "[[\":hello\",42]] call hash_set"))
 
+(comment
+  (-> (ana/analyze
+       (empty-env)
+       '(if true
+          :something))
+      sqisp/emit
+      with-out-str
+      println))
