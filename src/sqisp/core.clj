@@ -1,7 +1,9 @@
 (ns sqisp.core
   (:require
    [sqisp.analyzer :as ana]
+   [sqisp.env :as env]
    [cuerdas.core :as cuerdas]
+   [clojure.pprint :refer [pprint]]
    [taoensso.timbre :as timbre]
    [clojure.java.io :as io])
   (:import [java.io File Writer PushbackReader]))
@@ -85,9 +87,9 @@
   [x]
   (emits (wrap-in-double-quotes x)))
 
-(defmethod emit-constant* Long [x] (emits x))
+(defmethod emit-constant* Long [x] (emits "(" x ")"))
 
-(defmethod emit-constant* Double [x] (emits x))
+(defmethod emit-constant* Double [x] (emits "(" x ")"))
 
 (defmethod emit-constant* Boolean [x] (emits (if x "true" "false")))
 
@@ -143,17 +145,20 @@
 
 (defmethod emit* :if
   [{:keys [env test then else]}]
-  (emit-wrap
-   env
-   (cond
-     (truthy-constant? test) (emitln then)
-     (falsey-constant? test) (emitln else)
-     :else (do
-             (emitln "if (" test ") then {")
-             (emit then)
-             (emitln "} else {")
-             (emit else)
-             (emits "}")))))
+  (let [context (:context env)]
+    (emit-wrap
+     env
+     (cond
+       (truthy-constant? test) (emitln then)
+       (falsey-constant? test) (emitln else)
+       :else (do
+               (when (= context :expr) (emits "("))
+               (emitln "if (" test ") then {")
+               (emit then)
+               (emitln "} else {")
+               (emit else)
+               (emits "}")
+               (when (= context :expr) (emits ")")))))))
 
 (defmethod emit* :do
   [{:keys [statements ret env]}]
@@ -161,16 +166,24 @@
     (when (and (seq statements) (= :expr context)) (emitln "([] call {"))
     (doseq [s statements] (emitln s))
     (emit ret)
+    (emitln ";")
     (when (and (seq statements) (= :expr context)) (emitln "})"))))
 
-(defn munge
-  [s]
-  (as-> s $
-    (cuerdas/replace $ #"-" "_")
-    (if (cuerdas/ends-with? $ "?") (str "is_" (cuerdas/rstrip $ "?")) $)))
+(defmethod emit* :global
+  [{:keys [name var init env] :as form}]
+  (let [mname (munge name)]
+    (emits var)
+    (emits " = " init)
+    (emitln ";")))
 
 (defmethod emit* :var [{:keys [form name]}]
   (emits (munge (str name))))
+
+(defmethod emit* :sqf-var [{:keys [form name]}]
+  (emits (munge (str name))))
+
+(defmethod emit* :local [{:keys [form name] :as env}]
+  (emits (str name)))
 
 (defmethod emit* :vector
   [{:keys [items]}]
@@ -178,22 +191,38 @@
     (emits "[]")
     (emits "[" (comma-sep items) "]")))
 
+(defmethod emit* :let
+  [{expr :body :keys [bindings env]}]
+  (let [context (:context env)]
+    (when (= :expr context) (emits "([] call {"))
+    (doseq [{:keys [init] :as binding} bindings]
+      (emits "private ")
+      (emit binding)
+      (emitln " = " init ";"))
+    (emits expr)
+    (when (= :expr context) (emits "})"))))
+
+(defmethod emit* :binding
+  [{:keys [form name]}]
+  (emits (munge (str name))))
+
 (defn emit-source
   [^File src ^File dest]
   (timbre/debug "compiling file")
-  (with-open [out ^Writer (io/make-writer dest {})]
-    (binding [*out* out]
-      (with-open [rdr (io/reader src)]
-        (let [env (ana/empty-env)]
-          (loop [forms (ana/forms-seq* rdr)]
-            (if (seq forms)
-              (let [form (ana/analyze (first forms))]
-                (emit env form)
-                (recur (rest forms)))
-              (let [ret {:file dest
-                         :out-file (.toString dest)
-                         :source-file src}]
-                ret))))))))
+  (env/ensure
+   (with-open [out ^Writer (io/make-writer dest {})]
+     (binding [*out* out]
+       (with-open [rdr (io/reader src)]
+         (let [env (ana/empty-env)]
+           (loop [forms (ana/forms-seq* rdr)]
+             (if (seq forms)
+               (let [form (ana/analyze env (first forms))]
+                 (emit form)
+                 (recur (rest forms)))
+               (let [ret {:file dest
+                          :out-file (.toString dest)
+                          :source-file src}]
+                 ret)))))))))
 
 (defn compile-file*
   [^File src ^File dest]

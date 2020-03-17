@@ -2,6 +2,8 @@
   (:use midje.sweet)
   (:require [sqisp.core :as sqisp]
             [sqisp.analyzer :as ana]
+            [sqisp.env :as env]
+            [clojure.pprint :refer [pprint]]
             [sqisp.analyzer :refer [empty-env]]))
 
 ;; (sqisp/emit {:op :if :env (empty-env) :form '(if true "hello")
@@ -24,10 +26,10 @@
        (fact "numbers"
              (with-out-str
                (sqisp/emit {:op :const, :val '42, :form '42, :tag 'number}))
-             => "42"
+             => "(42)"
              (with-out-str
                (sqisp/emit {:op :const, :val '-3.14, :form '-3.14, :tag 'number}))
-             => "-3.14")
+             => "(-3.14)")
        (fact "boolean"
              (with-out-str
                (sqisp/emit {:op :const, :val 'true, :form 'true, :tag 'boolean}))
@@ -52,7 +54,7 @@
              => "foo_bar"
              (with-out-str
                (sqisp/emit {:op :var :form 'foo? :name 'foo?}))
-             => "is_foo")
+             => "foo_QMARK_")
        (fact "vectors"
              (with-out-str
                (sqisp/emit {:op :vector, :val '[], :form '[], :tag 'sq-nil}))
@@ -64,7 +66,7 @@
                                     {:op :const :val 'nil :form 'nil :tag 'sqp-nil}]
                             :children [:items]
                             :tag 'sqp/Vector}))
-             => "[1,null]"
+             => "[(1),null]"
              (with-out-str
                (sqisp/emit {:op :vector
                             :form '["hello" [false]]
@@ -109,7 +111,7 @@
                                                    :form ':foo, :tag 'sqp/Keyword}]}
                                          {:op :const, :val '0
                                           :form '0, :tag 'number}]}))
-                   => "([\":foo\"] select 0);\n"
+                   => "([\":foo\"] select (0));\n"
                    (with-out-str
                      (sqisp/emit {:op :builtin
                                   :form '(all-units)
@@ -135,7 +137,7 @@
                             :vals [{:op :const :form '42
                                     :val '42 :tag 'number}]
                             :tag 'sqp/Map}))
-             => "[[\":hello\"],[42]] call hash_map")
+             => "[[\":hello\"],[(42)]] call hash_map")
        (fact "sets"
              (with-out-str
                (sqisp/emit {:op :set, :form '{:hello 42}
@@ -144,13 +146,23 @@
                                     {:op :const :form '42
                                      :val '42 :tag 'number}]
                             :tag 'sqp/Set}))
-             => "[[\":hello\",42]] call hash_set"))
+             => "[[\":hello\",(42)]] call hash_set")
+       (fact "specials"
+             (-> (env/with-compiler-env {}
+                   (ana/analyze
+                    (empty-env)
+                    '(global x-something!! nil)))
+                 sqisp/emit
+                 with-out-str)
+             => "x_something_BANG__BANG_ = null;\n"))
 
 (comment
-  (-> (ana/analyze
-       (empty-env)
-       '(if true
-          :something))
+  (-> (env/with-compiler-env {}
+       (ana/analyze
+        (empty-env)
+        '(global something "hello")))
       sqisp/emit
       with-out-str
-      println))
+      println
+      ;; pprint
+      ))

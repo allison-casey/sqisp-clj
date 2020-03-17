@@ -1,6 +1,7 @@
 (ns sqisp.analyzer-test
   (:use midje.sweet)
   (:require [sqisp.analyzer :refer [empty-env] :as ana]
+            [sqisp.env :as env]
             [sqisp.core :as sqisp]))
 
 (facts "about `analyze`"
@@ -45,17 +46,28 @@
                  :children [:keys :vals]
                  :tag 'sqp/Map})
        (fact "symbols"
-             (ana/analyze (empty-env) 'foo) => {:op :var :env (empty-env) :form 'foo :name 'foo})
+             (ana/analyze (empty-env) 'foo)
+             => {:op :sqf-var :env (empty-env)
+                 :form 'foo :name '"foo"
+                 :info {:name "foo" :op :sqf-var}})
        (fact "invoke"
              (ana/analyze (empty-env) '(print "foo"))
-             => {:op :invoke :env (empty-env) :form '(print "foo")
-                 :fn {:op :var :env (empty-env) :form 'print :name 'print}
-                 :args [{:op :const, :val '"foo", :env (empty-env) :form '"foo", :tag 'string}]
+             => {:op :invoke
+                 :env (empty-env)
+                 :form '(print "foo")
+                 :fn {:op :sqf-var :env (assoc (empty-env) :context :expr)
+                      :info {:name "print" :op :sqf-var}
+                      :form 'print :name '"print"}
+                 :args [{:op :const, :val '"foo",
+                         :env (assoc (empty-env) :context :expr)
+                         :form '"foo", :tag 'string}]
                  :children [:fn :args]})
        (fact "builtins"
-             (ana/analyze (empty-env) '(hint "foo"))
-             => {:op :builtin :env (empty-env) :form '(hint "foo")
-                 :fn {:op :var :env (empty-env) :form 'hint :name 'hint}
+             (ana/analyze (empty-env) '(bis/hint "foo"))
+             => {:op :builtin :env (empty-env) :form '(bis/hint "foo")
+                 :fn {:op :sqf-var :env (assoc (empty-env) :context :expr)
+                      :info {:name "hint" :op :sqf-var}
+                      :form 'hint :name '"hint"}
                  :builtin {:name "hint",
                            :description
                            "Outputs a hint message to the right of the screen (left of the screen in Operation Flashpoint) with a sound (except in Armed Assault). Use hintSilent for soundless hint. To split message in multiple lines either use Structured Text or \\n (in lower case).",
@@ -67,7 +79,9 @@
                                 :description "the message to display."}),
                              :syntax {:center "hint", :right "message"},
                              :returns {:type "Nothing"}}]}
-                 :args [{:op :const, :val '"foo", :env (empty-env) :form '"foo", :tag 'string}]
+                 :args [{:op :const, :val '"foo",
+                         :env (assoc (empty-env) :context :expr)
+                         :form '"foo", :tag 'string}]
                  :children [:fn :args :builtin]})
        (facts "specials"
               (fact "if"
@@ -99,5 +113,22 @@
                     => {:op :do :env (empty-env) :form '(do "hello" "world")
                         :statements [{:op :const :val '"hello" :env (empty-env) :form '"hello" :tag 'string}]
                         :ret {:op :const :val '"world" :env (empty-env) :form '"world" :tag 'string}
-                        :children [:statements :ret]})))
-
+                        :children [:statements :ret]})
+              (fact "global"
+                    (env/with-compiler-env {}
+                      (ana/analyze (empty-env) '(global _x 1))
+                      => {:op :global
+                          :env (empty-env)
+                          :form '(global _x 1)
+                          :name '_x
+                          :var {:op :var :name '"x"
+                                :info {:op :var :name "x"}
+                                :env (-> (empty-env)
+                                         (assoc :def-var? true)
+                                         (assoc :context :expr)
+                                         (dissoc :locals))
+                                :form '_x}
+                          :init {:op :const :val '1
+                                 :env (assoc (empty-env) :context :expr)
+                                 :form '1 :tag 'number}
+                          :children [:var :init]}))))

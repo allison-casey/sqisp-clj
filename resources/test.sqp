@@ -1,1 +1,35 @@
-(print "hello world")
+;; standalone comments
+
+;; lets in statement context
+(let [hello "world" ; end of line comment
+      something :else]
+  (bis/hint hello)
+  something)
+
+;; let in expr context
+(bis/hint (let [something "hello world"] something))
+
+;; unified bis function calls
+(bis/hint (bis/select (bis/all-units) 2))
+
+;; global defines
+(global something "hello")
+(global _hello_world :42) ; auto munging into global var
+
+;; native datatypes
+(bis/hint 42)                       ; int
+(bis/hint 42.24)                    ; float
+(bis/hint "hello")                  ; strings
+(bis/hint :world)                   ; keywords
+(bis/hint nil)                      ; nils
+(bis/hint true)                     ; bools
+(bis/hint {:hash "map"})            ; hash-maps
+(bis/hint #{:a :set "of" "values"}) ; sets
+(bis/hint ["a" :vector [:nested]])  ; vectors
+
+;; if expressions
+(if (bis/count (bis/all-units))
+  (bis/hint "we have some units")
+  (bis/hint "we don't have any units"))
+
+(bis/hint (if (bis/all-units) "hello" "world"))
