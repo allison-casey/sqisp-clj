@@ -103,9 +103,19 @@
   (when-not (= :statement (:context env))
     (emit-constant* form)))
 
+(defn emit-math-expression
+  [{f :fn :keys [args env] :as expr}]
+  (emit-wrap
+   env
+   (emits "(")
+   (apply emits (interpose (str " " (:name f) " ") args))
+   (emits ")")))
+
 (defmethod emit* :invoke
   [{f :fn :keys [args env] :as expr}]
-  (emit-wrap env (emits "(" "[" (comma-sep args) "]" " call " f ")")))
+  (if (contains? '#{+ * - / %} (:form f))
+    (emit-math-expression expr)
+    (emit-wrap env (emits "(" "[" (comma-sep args) "]" " call " f ")"))))
 
 (defmethod emit* :builtin
   [{f :fn :keys [args env builtin] :as expr}]

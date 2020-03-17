@@ -1,4 +1,6 @@
 ;; standalone comments
+;; math expressions
+(% (+ 2 3 4 (* 2.2 3) (/ 1 2)) 2)
 
 ;; lets in statement context
 (let [hello "world" ; end of line comment
