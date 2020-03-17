@@ -194,7 +194,7 @@
 (defmethod emit* :let
   [{expr :body :keys [bindings env]}]
   (let [context (:context env)]
-    (when (= :expr context) (emits "([] call {"))
+    (when (= :expr context) (emits "(call {"))
     (doseq [{:keys [init] :as binding} bindings]
       (emits "private ")
       (emit binding)

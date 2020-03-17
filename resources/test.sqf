@@ -3,7 +3,7 @@ private _something = ":else";
 (hint _hello);
 
 _something;
-(hint ([] call {private _something = "hello world";
+(hint (call {private _something = "hello world";
 _something;
 }));
 (hint ((allUnits) select (2)));
