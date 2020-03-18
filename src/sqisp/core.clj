@@ -111,10 +111,39 @@
    (apply emits (interpose (str " " (:name f) " ") args))
    (emits ")")))
 
+(defn emit-equality-expression
+  [{f :fn :keys [args env] :as expr}]
+  (if (= (count args) 1)
+    (emit-wrap env (emits (if (= (:form f) '=) "true" "false")))
+    (emit-wrap
+     env
+     (emits (if (= (:form f) '=) "(" "!("))
+     (apply emits (interpose " isEqualTo " args))
+     (emits ")"))))
+
+(defn emit-comparison-expression
+  [{f :fn :keys [args env] :as expr}]
+  (if (= (count args) 1)
+    (emit-wrap env (emits "true"))
+    (let [op (str " " (:name f) " ")
+          infixed-expr (->> args
+                            (partition 2 1)
+                            (map (fn [[l r]] [l op r]))
+                            (interpose " and ")
+                            flatten)]
+      (emit-wrap
+       env
+       (emits "(")
+       (apply emits infixed-expr)
+       (emits ")")))))
+
 (defmethod emit* :invoke
   [{f :fn :keys [args env] :as expr}]
-  (if (contains? '#{+ * - / %} (:form f))
-    (emit-math-expression expr)
+  (cond
+    (contains? '#{+ * - / %} (:form f)) (emit-math-expression expr)
+    (contains? '#{= not=} (:form f)) (emit-equality-expression expr)
+    (contains? '#{> >= < <=} (:form f)) (emit-comparison-expression expr)
+    :else
     (emit-wrap env (emits "(" "[" (comma-sep args) "]" " call " f ")"))))
 
 (defmethod emit* :builtin
@@ -173,7 +202,7 @@
 (defmethod emit* :do
   [{:keys [statements ret env]}]
   (let [context (:context env)]
-    (when (and (seq statements) (= :expr context)) (emitln "([] call {"))
+    (when (and (seq statements) (= :expr context)) (emitln "(call {"))
     (doseq [s statements] (emitln s))
     (emit ret)
     (emitln ";")

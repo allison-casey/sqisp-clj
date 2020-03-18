@@ -1,24 +1,6 @@
 ;; standalone comments
-;; math expressions
-(% (+ 2 3 4 (* 2.2 3) (/ 1 2)) 2)
 
-;; lets in statement context
-(let [hello "world" ; end of line comment
-      something :else]
-  (bis/hint hello)
-  something)
-
-;; let in expr context
-(bis/hint (let [something "hello world"] something))
-
-;; unified bis function calls
-(bis/hint (bis/select (bis/all-units) 2))
-
-;; global defines
-(global something "hello")
-(global _hello_world :42) ; auto munging into global var
-
-;; native datatypes
+;; datatypes
 (bis/hint 42)                       ; int
 (bis/hint 42.24)                    ; float
 (bis/hint "hello")                  ; strings
@@ -29,9 +11,44 @@
 (bis/hint #{:a :set "of" "values"}) ; sets
 (bis/hint ["a" :vector [:nested]])  ; vectors
 
-;; if expressions
+;; unified bis function calls
+(bis/hint (bis/select (bis/all-units) 2))
+
+;;; special forms
+;; global
+(global something "hello")
+(global _hello_world :42) ; auto munging into global var
+
+;; if
 (if (bis/count (bis/all-units))
   (bis/hint "we have some units")
   (bis/hint "we don't have any units"))
 
 (bis/hint (if (bis/all-units) "hello" "world"))
+
+;; do
+(global hello (do (bis/hint "calling global")
+                  42))
+
+;; let
+(let [hello "world" ; end of line comment
+      something :else]
+  (bis/hint hello)
+  something)
+
+;; 
+
+;; math expressions
+(% (+ 2 3 4 (* 2.2 3) (- (/ 1 2) 1)) 2 2)
+
+;; equality expressions
+(= 1 1 1)
+(not= 1 2)
+(= 1)    ; constantly true
+(not= 1) ; constantly false
+(> 2 1)
+(< 0 1 2)
+(<= 0 0)
+(>= 1 2)
+(> 1)    ; constantly true
+(= 1)    ; constantly true
