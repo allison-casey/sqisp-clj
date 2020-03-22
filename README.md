@@ -1,22 +1,46 @@
-# sqisp
+# Sqisp
 
-A Clojure library designed to ... well, that part is up to you.
+## Features
 
-## Usage
+### Data Types
+- [x] Numbers
+- [x] Strings
+- [x] Keywords
+- [x] Nil
+- [x] Bools
+- [x] Hash-maps
+- [x] Hash-sets
+- [x] Vectors
 
-FIXME
+### Special Forms
+- [x] `bis` :: Namespace for builtin sqf functions
+- [x] `global` :: Intern global bar auto munging sqf varname
+- [x] `if` :: If/Else expression
+- [x] `do` :: Do IIFE expression syntax
+- [x] `let` :: Define private variables for implicit do
+- [x] `+,/,-,*,%` :: Basic math forms compiling to infix notation
+- [x] `>=,>,=,<,<=` :: Compirson infix operators
+- [ ] `fn` :: Define lambda expressions
+- [ ] `quote` :: Yield unevaluated form
+- [ ] `throw` :: Throw an exception
+- [ ] `try/catch` :: Catch exceptions in calls
+- [ ] `defmacro` :: Define compile time macros
 
-## License
+### Compiler Features
+- [ ] Sequence destructuring 
+- [ ] Hash-map destructuring
+- [ ] Compile time syntax exceptions
+  - [ ] Undefined var exceptions
+  - [ ] Syntax errors
+- [ ] Macro expansion syntax
+- [ ] Standard Library
 
-Copyright © 2020 FIXME
-
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
-http://www.eclipse.org/legal/epl-2.0.
-
-This Source Code may also be made available under the following Secondary
-Licenses when the conditions for such availability set forth in the Eclipse
-Public License, v. 2.0 are satisfied: GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your
-option) any later version, with the GNU Classpath Exception which is available
-at https://www.gnu.org/software/classpath/license.html.
+## Macros
+- [ ] `cond`
+- [ ] `->`
+- [ ] `->>`
+- [ ] `as->`
+- [ ] `defn`
+- [ ] `if-not`
+- [ ] `when`
+- [ ] `unless`
